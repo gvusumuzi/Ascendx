@@ -1,5 +1,7 @@
 import streamlit as st
-
+import sqlite3
+import hashlib
+import re
 st.markdown("""
 <style>
 /* Remove default Streamlit padding */
@@ -128,10 +130,32 @@ st.markdown("""
 
 
 st.set_page_config(page_title="AscendX", layout="wide")
+# --------------------------------------------------
+# DATABASE SETUP
+# --------------------------------------------------
 
+def init_db():
+    conn = sqlite3.connect("ascendx.db")
+    c = conn.cursor()
+
+    c.execute("""
+        CREATE TABLE IF NOT EXISTS users (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT NOT NULL,
+            email TEXT UNIQUE NOT NULL,
+            role TEXT NOT NULL,
+            password TEXT NOT NULL
+        )
+    """)
+
+    conn.commit()
+    conn.close()
+
+init_db()
 # --------------------------------------------------
 # SESSION STATE INIT
 # --------------------------------------------------
+
 if "page" not in st.session_state:
     st.session_state.page = "home"
 
@@ -390,17 +414,31 @@ with st.container():
     with col2:
         st.markdown("""
         <div class="nav-bar">
-            <a class="nav-html-btn" href="?page=home">Home</a>
-            <a class="nav-html-btn" href="?page=mentors">Find Mentors</a>
-            <a class="nav-html-btn" href="?page=clients">Find Clients</a>
-            <a class="nav-html-btn" href="?page=login">Sign In</a>
-           <a class="nav-html-btn" href="?page=signup">Sign Up</a> 
+      <a class="nav-html-btn" href="?page=home">Home</a>
+    <a class="nav-html-btn" href="?page=mentors">Find Mentors</a>
+    <a class="nav-html-btn" href="?page=clients">Find Clients</a>
+    <a class="nav-html-btn" href="?page=login">Sign In</a>
+    <a class="nav-html-btn" href="?page=signup">Sign Up</a>
         </div>
         """, unsafe_allow_html=True)
 
     # USER INFO
     with col3:
         if st.session_state.user:
+    if st.button("Logout"):
+        st.session_state.user = None
+        st.session_state.page = "home"
+        st.rerun()
+
+    st.markdown(
+        f"""
+        <div class="user-info">
+            👤 <strong>{st.session_state.user['name']}</strong><br>
+            <span>{st.session_state.user['role']}</span>
+        </div>
+        """,
+        unsafe_allow_html=True
+    )
             st.markdown(
                 f"""
                 <div class="user-info">
@@ -431,9 +469,47 @@ if st.session_state.page == "clients":
 # --------------------------------------------------
 # PAGE: LOGIN
 # --------------------------------------------------
+# --------------------------------------------------
+# PAGE: LOGIN
+# --------------------------------------------------
 if st.session_state.page == "login":
-    st.markdown("## 🔐 Sign In")
-    st.info("Login flow will go here.")
+
+    st.markdown("""
+    <div class="card" style="max-width:500px;margin:auto;">
+        <h2 style="text-align:center;">🔐 Sign In</h2>
+    </div>
+    """, unsafe_allow_html=True)
+
+    with st.form("login_form"):
+        email = st.text_input("Email")
+        password = st.text_input("Password", type="password")
+
+        submitted = st.form_submit_button("Sign In")
+
+        if submitted:
+            conn = sqlite3.connect("ascendx.db")
+            c = conn.cursor()
+
+            c.execute(
+                "SELECT name, role, password FROM users WHERE email = ?",
+                (email,)
+            )
+            user = c.fetchone()
+            conn.close()
+
+            if user and user[2] == hash_password(password):
+                st.session_state.user = {
+                    "name": user[0],
+                    "role": user[1],
+                    "email": email
+                }
+
+                st.success("Welcome back!")
+                st.session_state.page = "home"
+                st.rerun()
+
+            else:
+                st.error("Invalid email or password.")
 
 # --------------------------------------------------
 # PAGE: HOME
@@ -453,12 +529,16 @@ if st.session_state.page == "home":
         border-radius: 12px;
         cursor: pointer;
     }
-    # PAGE: SIGN UP
+    {
+# PAGE: SIGN UP
 # --------------------------------------------------
-
-{
 if st.session_state.page == "signup":
-    st.markdown("## 📝 Create an Account")
+
+    st.markdown("""
+    <div class="card" style="max-width:500px;margin:auto;">
+        <h2 style="text-align:center;">📝 Create Account</h2>
+    </div>
+    """, unsafe_allow_html=True)
 
     with st.form("signup_form"):
         name = st.text_input("Full Name")
@@ -469,20 +549,32 @@ if st.session_state.page == "signup":
         submitted = st.form_submit_button("Create Account")
 
         if submitted:
-            if name and email and password:
-                st.session_state.user = {
-                    "name": name,
-                    "email": email,
-                    "role": role
-                }
 
-                st.success("🎉 Account created successfully!")
-                st.session_state.page = "home"
-                st.rerun()
+            if not name or not email or not password:
+                st.error("All fields are required.")
+            
+            elif not valid_email(email):
+                st.error("Please enter a valid email address.")
+            
             else:
-                st.error("Please fill in all fields.")
-                }
+                conn = sqlite3.connect("ascendx.db")
+                c = conn.cursor()
 
+                try:
+                    c.execute(
+                        "INSERT INTO users (name, email, role, password) VALUES (?, ?, ?, ?)",
+                        (name, email, role, hash_password(password))
+                    )
+                    conn.commit()
+
+                    st.success("🎉 Account created successfully!")
+                    st.session_state.page = "login"
+                    st.rerun()
+
+                except sqlite3.IntegrityError:
+                    st.error("Email already exists. Please sign in.")
+
+                conn.close()
     .btn-primary {
         background-color: #6f4aa6;
         color: white;
