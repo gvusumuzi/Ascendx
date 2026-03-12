@@ -458,7 +458,7 @@ if st.session_state.page == "home":
 
 {
 if st.session_state.page == "signup":
-    st.markdown("## 📝 Create an Account")
+    st.markdown("## Create an Account")
 
     with st.form("signup_form"):
         name = st.text_input("Full Name")
