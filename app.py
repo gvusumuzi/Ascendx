@@ -536,7 +536,7 @@ if st.session_state.page == "signup":
 
     st.markdown("""
     <div class="card" style="max-width:500px;margin:auto;">
-        <h2 style="text-align:center;">📝 Create Account</h2>
+        <h2 style="text-align:center;"> Create Account</h2>
     </div>
     """, unsafe_allow_html=True)
 
